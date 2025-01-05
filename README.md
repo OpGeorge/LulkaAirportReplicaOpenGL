@@ -31,7 +31,7 @@ A good starting point is this [tutorial](https://www.youtube.com/watch?v=uO__ntY
 - Once you have the files downloaded you can create an empty VS project that has GLFW, GLEW and GLM linked.
 
 - Then you can copy the files of the repo inside the VS project and run the program.
-- Upon succes you will be greated with this view
+- Upon succes you will be greated with this view ![StartUp Screen](pressingR.png)
 
 ### Controls
 - W, A, S, D for movement.

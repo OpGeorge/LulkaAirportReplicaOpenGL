@@ -8,8 +8,12 @@ namespace gps {
 		this->cameraPosition = cameraPosition;
 		this->cameraTarget = cameraTarget;
 		
-		this->cameraFrontDirection = glm::normalize(  cameraTarget - cameraPosition);
+		this->cameraFrontDirection = glm::normalize(   cameraPosition - cameraTarget );
+
+
 		this->cameraRightDirection = glm::normalize(glm::cross(cameraUp, this->cameraFrontDirection));
+
+
 		this->cameraUpDirection = glm::cross(this->cameraFrontDirection,this->cameraRightDirection);
 	}
 
@@ -39,17 +43,28 @@ namespace gps {
 		if (direction == gps::MOVE_RIGHT) {
 			cameraPosition += glm::normalize(glm::cross(cameraFrontDirection, cameraUpDirection)) * speed;
 		}
+		if (direction == gps::MOVE_UP) {
+			cameraPosition += cameraUpDirection * speed;
+		}
+		if (direction == gps::MOVE_DOWN) {
+			cameraPosition +=  -cameraUpDirection* speed;
+		}
 	}
 
 	//update the camera internal parameters following a camera rotate event
 	//yaw - camera rotation around the y axis
 	//pitch - camera rotation around the x axis
 	void Camera::rotate(float pitch, float yaw) {
-		glm::vec3 front;
-		front.x = cos(glm::radians(pitch)) * cos(glm::radians(yaw));
-		front.y = sin(glm::radians(pitch));
-		front.z = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
-		this->cameraFrontDirection = glm::normalize(front);
+		glm::vec3 direction;
+		direction.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+		direction.y = sin(glm::radians(pitch));
+		direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+
+		this->cameraFrontDirection = glm::normalize(direction);
+		this->cameraRightDirection = glm::normalize(glm::cross(glm::vec3(0.0f,1.0f,0.0f), this->cameraFrontDirection));
+		this->cameraUpDirection = glm::cross(this->cameraFrontDirection, this->cameraRightDirection);
+
+		//this->cameraTarget = glm::normalize(front);
 	}
 
 }

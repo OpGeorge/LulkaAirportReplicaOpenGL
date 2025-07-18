@@ -27,13 +27,14 @@
 #include "SkyBox.hpp"
 #include <iostream>
 
-int glWindowWidth = 800;
-int glWindowHeight = 600;
+int glWindowWidth = 1280;
+int glWindowHeight = 720;
+int mode = 1;
 int retina_width, retina_height;
 GLFWwindow* glWindow = NULL;
 
-const unsigned int SHADOW_WIDTH = 2048;
-const unsigned int SHADOW_HEIGHT = 2048;
+const unsigned int SHADOW_WIDTH = 8192;
+const unsigned int SHADOW_HEIGHT = 8192;
 
 glm::mat4 model;
 GLuint modelLoc;
@@ -44,29 +45,54 @@ GLuint projectionLoc;
 glm::mat3 normalMatrix;
 GLuint normalMatrixLoc;
 glm::mat4 lightRotation;
+glm::mat4 lightRotation2;
 
 glm::vec3 lightDir;
 GLuint lightDirLoc;
 glm::vec3 lightColor;
 GLuint lightColorLoc;
 
+glm::vec3 lightDir2;
+GLuint lightDirLoc2;
+glm::vec3 lightColor2;
+GLuint lightColorLoc2;
+
+
+glm::vec3 LightDir2(0.0f, 5.0f, -9.0f);
+
+glm::vec3 LightColor2(0.0f,0.0f,0.8f);
+
+glm::vec3 posCam;
+glm::vec3 camDir;
 gps::Camera myCamera(
-				glm::vec3(0.0f, 1.25f, 3.0f), 
+				glm::vec3(20.0f, 3.0f, 8.0f), 
 				glm::vec3(0.0f, 0.0f, 0.0f),
 				glm::vec3(0.0f, 1.0f, 0.0f));
 float cameraSpeed = 0.01f;
+float fov = 45.0f;
 
 bool pressedKeys[1024];
-bool firstMouse;
+bool firstMouse = true;
 float angleY = 0.0f;
 GLfloat lightAngle;
+GLfloat planeMoveZ = 0.0f;
+GLfloat planeMoveY = 0.0f;
 
-gps::Model3D nanosuit;
+gps::Model3D newground;
 gps::Model3D ground;
+
 gps::Model3D lightCube;
 gps::Model3D screenQuad;
+
+gps::Model3D nanosuit;
 gps::Model3D nanosuit2;
+
 gps::Model3D jet;
+gps::Model3D tower;
+gps::Model3D avionas;
+gps::Model3D fightJet;
+gps::Model3D farmh;
+
 
 gps::Shader myCustomShader;
 gps::Shader myCustomShaderFog;
@@ -79,6 +105,9 @@ GLuint depthMapTexture;
 
 bool showDepthMap;
 bool FOG ;
+bool cursorDisabled = false;
+int polygonMode = 0;
+bool showScene = true;
 
 GLuint textureID;
 gps::SkyBox mySkyBox;
@@ -119,10 +148,40 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
 
 	if (key == GLFW_KEY_M && action == GLFW_PRESS)
 		showDepthMap = !showDepthMap;
+
 	if (key == GLFW_KEY_F && action == GLFW_PRESS) {
 		FOG = !FOG;
 		
 	}
+
+	if (key == GLFW_KEY_P && action == GLFW_PRESS){
+			polygonMode += 1;
+			int mode = polygonMode % 3;
+		if (mode == 0)
+		{
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
+		if (mode == 1)
+		{
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+		}
+		if (mode == 2)
+		{
+		glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+
+		}
+
+	}
+
+	if (key == GLFW_KEY_R && action == GLFW_PRESS) {
+	
+		showScene = !showScene;
+
+	}
+
+
+
 
 	if (key >= 0 && key < 1024)
 	{
@@ -131,55 +190,71 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
 		else if (action == GLFW_RELEASE)
 			pressedKeys[key] = false;
 	}
+
+
+}
+
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+		cursorDisabled = !cursorDisabled; // Toggle cursor state
+
+
+		if (cursorDisabled) {
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		}
+		else {
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		}
+	}
+}
+
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	fov -= (float)yoffset;
+	if (fov < 1.0f)
+		fov = 1.0f;
+	if (fov > 45.0f)
+		fov = 45.0f;
 }
 
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
-	//static double lastX = xpos, lastY = ypos;
-	//static bool firstMouse = true;
+	if (cursorDisabled == true) {
 
-	//if (firstMouse) {
-	//	lastX = xpos;
-	//	lastY = ypos;
-	//	firstMouse = false;
-	//}
+		float xoffset = xpos - lastX;
+		float yoffset = lastY - ypos; // reversed since y-coordinates range from bottom to top
+		lastX = xpos;
+		lastY = ypos;
 
-	//float xoffset = xpos - lastX;
-	//float yoffset = lastY - ypos;  // Reversed since y-coordinates range from bottom to top
-	//lastX = xpos;
-	//lastY = ypos;
+		const float sensitivity = 0.1f;
+		xoffset *= sensitivity;
+		yoffset *= sensitivity;
 
-	//const float sensitivity = 0.1f;
-	//const float aspectRatio = static_cast<float>(glWindowWidth) / static_cast<float>(glWindowHeight);
-	//float adjustedSensitivity = sensitivity * aspectRatio;
+		yaw += xoffset;
+		pitch += yoffset;
 
-	//xoffset *= sensitivity;
-	//yoffset *= adjustedSensitivity;
+		if (pitch > 89.0f)
+			pitch = 89.0f;
+		if (pitch < -89.0f)
+			pitch = -89.0f;
+	}
 
-	//yaw += xoffset;
-	//pitch += yoffset;
-
-	//if (pitch > 89.0f)
-	//	pitch = 89.0f;
-	//if (pitch < -89.0f)
-	//	pitch = -89.0f;
-
-	//myCamera.rotate(pitch, yaw);
+	myCamera.rotate(pitch, yaw); 
 }
 
 void processMovement()
 {
-	glfwSetCursorPosCallback(glWindow, mouseCallback);
+
 
 	if (pressedKeys[GLFW_KEY_Q]) {
-		angleY -= 1.0f;		
+		angleY -= 1.0f;
 	}
 
 	if (pressedKeys[GLFW_KEY_E]) {
-		angleY += 1.0f;		
+		angleY += 1.0f;
 	}
 
 	if (pressedKeys[GLFW_KEY_J]) {
-		lightAngle -= 1.0f;		
+		lightAngle -= 1.0f;
 	}
 
 	if (pressedKeys[GLFW_KEY_L]) {
@@ -187,11 +262,11 @@ void processMovement()
 	}
 
 	if (pressedKeys[GLFW_KEY_W]) {
-		myCamera.move(gps::MOVE_FORWARD, cameraSpeed);		
+		myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
 	}
 
 	if (pressedKeys[GLFW_KEY_S]) {
-		myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);		
+		myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);
 	}
 
 	if (pressedKeys[GLFW_KEY_A]) {
@@ -201,6 +276,28 @@ void processMovement()
 	if (pressedKeys[GLFW_KEY_D]) {
 		myCamera.move(gps::MOVE_RIGHT, cameraSpeed);
 	}
+	if (pressedKeys[GLFW_KEY_X]) {
+		myCamera.move(gps::MOVE_UP, cameraSpeed);
+	}
+	if (pressedKeys[GLFW_KEY_Z]) {
+		myCamera.move(gps::MOVE_DOWN, cameraSpeed);
+	}
+
+	if (pressedKeys[GLFW_KEY_C]) {
+		cameraSpeed = 0.07f;
+	}
+	if (pressedKeys[GLFW_KEY_V]) {
+		cameraSpeed = 0.01f;
+	}
+
+	if (pressedKeys[GLFW_KEY_B]) {
+		planeMoveZ += 0.08f;
+	}
+	if (pressedKeys[GLFW_KEY_N]) {
+		planeMoveZ -= 0.08f;
+	}
+
+	
 	
 
 }
@@ -236,7 +333,10 @@ bool initOpenGLWindow()
 
 	glfwSetWindowSizeCallback(glWindow, windowResizeCallback);
 	glfwSetKeyCallback(glWindow, keyboardCallback);
+	glfwSetMouseButtonCallback(glWindow, mouseButtonCallback);
 	glfwSetCursorPosCallback(glWindow, mouseCallback);
+	glfwSetScrollCallback(glWindow, scroll_callback);
+	
 	//glfwSetInputMode(glWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	glfwMakeContextCurrent(glWindow);
@@ -263,7 +363,7 @@ bool initOpenGLWindow()
 
 void initOpenGLState()
 {
-	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+	glClearColor(0.5, 0.5, 0.5, 1.0);
 	glViewport(0, 0, retina_width, retina_height);
 
 	glEnable(GL_DEPTH_TEST); // enable depth-testing
@@ -276,19 +376,30 @@ void initOpenGLState()
 }
 
 void initObjects() {
-	nanosuit.LoadModel("objects/nanosuit/nanosuit.obj");
-	ground.LoadModel("objects/ground/ground.obj");
+	
+	newground.LoadModel("objects/newground/ScenaPtLulka2.obj");
 	lightCube.LoadModel("objects/cube/cube.obj");
 	screenQuad.LoadModel("objects/quad/quad.obj");
 	jet.LoadModel("objects/jet/jet.obj");
+	avionas.LoadModel("objects/avionas/11804_Airplane_v2_l2.obj");
+	fightJet.LoadModel("objects/fightjet/fightJets.obj");
+	tower.LoadModel("objects/Tower/tower.obj");
+	farmh.LoadModel("objects/farmh/FarmHouse.obj");
+
+
+	planeMoveY = 30.0f;
+	planeMoveZ = -40.0f;
+
+
+	
+
 	
 }
 
 void initShaders() {
 	
-	myCustomShaderFog.loadShader("shaders/shaderStart.vert", "shaders/shaderStart.frag");
-	myCustomShaderFog.useShaderProgram();
-	myCustomShader.loadShader("shaders/shaderNoReflections.vert", "shaders/shaderNoReflections.frag");
+	
+	myCustomShader.loadShader("shaders/shaderStart.vert", "shaders/shaderStart.frag");
 	myCustomShader.useShaderProgram();
 	depthMapShader.loadShader("shaders/lightSpaceTrMatrix.vert", "shaders/lightSpaceTrMatrix.frag");
 	depthMapShader.useShaderProgram();
@@ -328,20 +439,24 @@ void initUniforms() {
 	normalMatrixLoc = glGetUniformLocation(myCustomShader.shaderProgram, "normalMatrix");
 	glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
 	
-	projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
+	projection = glm::perspective(glm::radians(fov), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
 	projectionLoc = glGetUniformLocation(myCustomShader.shaderProgram, "projection");
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
 	//set the light direction (direction towards the light)
-	lightDir = glm::vec3(0.0f,2.0f, 1.0f);
+	lightDir = glm::vec3(0.0f,5.0f, 9.0f);
 	lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
 	lightDirLoc = glGetUniformLocation(myCustomShader.shaderProgram, "lightDir");	
 	glUniform3fv(lightDirLoc, 1, glm::value_ptr(glm::inverseTranspose(glm::mat3(view * lightRotation)) * lightDir));
 
 	//set light color
-	lightColor = glm::vec3(1.0f, 1.0f, 1.0f); //white light
+	lightColor = glm::vec3(0.8f, 0.8f, 0.8f); //white light
 	lightColorLoc = glGetUniformLocation(myCustomShader.shaderProgram, "lightColor");
 	glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
+
+	lightColor2 = glm::vec3(1.0f, 0.3f, 0.0f);
+	lightColorLoc2 = glGetUniformLocation(myCustomShader.shaderProgram, "globalAmbientColor");
+	glUniform3fv(lightColorLoc2, 1, glm::value_ptr(lightColor2));
 
 	lightShader.useShaderProgram();
 	glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
@@ -380,9 +495,10 @@ void initFBO() {
 glm::mat4 computeLightSpaceTrMatrix() {
 	//TODO - Return the light-space transformation matrix\
 
+	lightDir = glm::vec3(glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::vec4(0.0f, 5.0f, 9.0f, 0.0f));
 	glm::mat4 lightView = glm::lookAt(lightDir, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	const GLfloat near_plane = 0.1f, far_plane = 6.0f;
-	glm::mat4 lightProjection = glm::ortho(-5.0f, 5.0f, -5.0f, 5.0f, near_plane, far_plane);
+	const GLfloat near_plane = 0.001f, far_plane = 100.0f;
+	glm::mat4 lightProjection = glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, near_plane, far_plane);
 	glm::mat4 lightSpaceTrMatrix = lightProjection * lightView;
 	return lightSpaceTrMatrix;
 }
@@ -390,8 +506,15 @@ glm::mat4 computeLightSpaceTrMatrix() {
 void drawObjects(gps::Shader shader, bool depthPass) {
 		
 	shader.useShaderProgram();
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(0.0f, 0.0f,0.0f));
+	model = glm::translate(model, glm::vec3(0.0f, 1.0f,0.0f)*planeMoveY);
+	model = glm::translate(model, glm::vec3(0.0f, 0.0f,1.0f)*planeMoveZ);
 	
-	model = glm::rotate(glm::mat4(1.0f), glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
+	
+	model = glm::rotate(model, glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
+	
+	
 	glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
 	// do not send the normal matrix if we are rendering in the depth map
@@ -402,9 +525,10 @@ void drawObjects(gps::Shader shader, bool depthPass) {
 
 	//nanosuit.Draw(shader);
 	jet.Draw(shader);
+	
 
-	model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -1.0f, 0.0f));
-	model = glm::scale(model, glm::vec3(0.5f));
+	model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+	model = glm::scale(model, glm::vec3(0.9f));
 	glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
 	// do not send the normal matrix if we are rendering in the depth map
@@ -413,7 +537,12 @@ void drawObjects(gps::Shader shader, bool depthPass) {
 		glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
 	}
 
-	ground.Draw(shader);	
+	newground.Draw(shader);
+	avionas.Draw(shader);
+	fightJet.Draw(shader);
+	tower.Draw(shader);
+	farmh.Draw(shader);
+
 }
 
 void renderScene() {
@@ -458,12 +587,28 @@ void renderScene() {
 
 		myCustomShader.useShaderProgram();
 
-		view = myCamera.getViewMatrix();
+
+		if (showScene == true)
+		{
+			view = myCamera.getViewMatrix();
+		}
+		else {
+
+			const float radius = 120.0f;
+			float camX = sin(glfwGetTime()*0.03f) * radius;
+			float camZ = cos(glfwGetTime()*0.03f) * radius;
+
+			view = glm::lookAt(glm::vec3(camX, 35.0, camZ), glm::vec3(0.0, 20.0, 0.0), glm::vec3(0.0, 1.0, 0.0));
+		}
+		
 		
 		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 
 		lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
 		glUniform3fv(lightDirLoc, 1, glm::value_ptr(glm::inverseTranspose(glm::mat3(view * lightRotation)) * lightDir));
+
+		glUniform3fv(glGetUniformLocation(myCustomShader.shaderProgram, "LightDir2"), 1, glm::value_ptr(LightDir2));
+		glUniform3fv(glGetUniformLocation(myCustomShader.shaderProgram, "LightColor2"), 1, glm::value_ptr(LightColor2));
 
 		//bind the shadow map
 		glActiveTexture(GL_TEXTURE3);
@@ -488,7 +633,7 @@ void renderScene() {
 		model = glm::scale(model, glm::vec3(0.05f, 0.05f, 0.05f));
 		glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
 
-		lightCube.Draw(lightShader);
+		//lightCube.Draw(lightShader);
 		mySkyBox.Draw(skyboxShader, view, projection);
 	}
 }
@@ -524,7 +669,41 @@ int main(int argc, const char * argv[]) {
 		renderScene();	
 
 		
+		
+			if (planeMoveY > 0.0f && mode ==1)
+			{
+				planeMoveY -= 0.06f;
+			}
 
+			if (planeMoveZ < 0.0f && mode == 1)
+			{
+				planeMoveZ += 0.04f;	
+			}
+
+			if (planeMoveZ > 0.0f && planeMoveZ < 150.0f)
+			{
+				mode = 0;
+				
+				if (planeMoveY < 50.0f)
+				{
+					planeMoveY += 0.04f;
+					planeMoveZ += 0.06f;
+				}
+				else {
+					planeMoveZ += 0.09f;
+				}
+				
+			}
+
+			if (planeMoveZ >= 150.0f)
+			{
+				planeMoveY = 30.0f;
+				planeMoveZ = -40.0f;
+				mode = 1;
+			}
+		
+			
+	
 		glfwPollEvents();
 		glfwSwapBuffers(glWindow);
 	}

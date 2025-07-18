@@ -12,6 +12,13 @@ out vec4 fColor;
 uniform	vec3 lightDir;
 uniform	vec3 lightColor;
 
+uniform vec3 lightDir2;
+uniform vec3 lightColor2;
+
+uniform vec3 globalAmbientColor;
+float globalAmbientStrength = 0.1f;
+
+
 //texture
 uniform sampler2D diffuseTexture;
 uniform sampler2D specularTexture;
@@ -19,43 +26,18 @@ uniform sampler2D specularTexture;
 //shadow map
 uniform sampler2D shadowMap;
 
-//skybox
-uniform samplerCube skybox;
-
 vec3 ambient;
+
 float ambientStrength = 0.2f;
 vec3 diffuse;
 vec3 specular;
 float specularStrength = 0.5f;
 float shininess = 32.0f;
 
+
+
+
 float shadow;
-
-void computeLightComponents()
-{		
-	vec3 cameraPosEye = vec3(0.0f);//in eye coordinates, the viewer is situated at the origin
-	
-	//transform normal
-	vec3 normalEye = normalize(fNormal);	
-	
-	//compute light direction
-	vec3 lightDirN = normalize(lightDir);
-	
-	//compute view direction 
-	vec3 viewDirN = normalize(cameraPosEye - fPosEye.xyz);
-		
-	//compute ambient light
-	ambient = ambientStrength * lightColor;
-	
-	//compute diffuse light
-	diffuse = max(dot(normalEye, lightDirN), 0.0f) * lightColor;
-	
-	//compute specular light
-	vec3 reflection = reflect(-lightDirN, normalEye);
-	float specCoeff = pow(max(dot(viewDirN, reflection), 0.0f), shininess);
-	specular = specularStrength * specCoeff * lightColor;
-}
-
 
 float computeShadow() 
 {
@@ -75,42 +57,70 @@ float computeShadow()
 	return (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
 }
 
-float computeFog() 
+void computeLightComponents()
 {
- float fogDensity = 0.05f;
+    vec3 cameraPosEye = vec3(0.0f);
+    vec3 normalEye = normalize(fNormal);
+
+    // Compute first light direction
+    vec3 lightDirN = normalize(lightDir);
+    vec3 viewDirN = normalize(cameraPosEye - fPosEye.xyz);
+
+    // Compute ambient light for the first light
+    ambient = ambientStrength * lightColor;
+
+    vec3 ambient2 = ambientStrength * lightColor2;
+
+
+    // Compute diffuse light for the first light
+    diffuse = max(dot(normalEye, lightDirN), 0.0f) * lightColor;
+
+    vec3 diffuse2 = max(dot(normalEye, lightDirN), 0.0f) * lightColor2;
+
+    // Compute specular light for the first light
+    vec3 reflection = reflect(-lightDirN, normalEye);
+    float specCoeff = pow(max(dot(viewDirN, reflection), 0.0f), shininess);
+    specular = specularStrength * specCoeff * lightColor;
+
+    vec3 reflection2 = reflect(-normalize(lightDir2), normalEye);
+    float specCoeff2 = pow(max(dot(viewDirN, reflection2), 0.0f), shininess);
+    vec3 specular2 = specularStrength * specCoeff2 * lightColor2;
+
+    ambient += ambient2;
+    diffuse += diffuse2;
+    specular += specular2;
+
+    // Add global ambient light
+    ambient += globalAmbientStrength * globalAmbientColor;
+}
+
+float computeFog()
+{
+ float fogDensity = 0.003f;
  float fragmentDistance = length(fPosEye);
  float fogFactor = exp(-pow(fragmentDistance * fogDensity, 2));
+ 
  return clamp(fogFactor, 0.0f, 1.0f);
 }
+
+
 
 void main() 
 {
 	computeLightComponents();
-	
-	vec3 baseColor = vec3(0.9f, 0.35f, 0.0f);//orange
-	
-	ambient *= texture(diffuseTexture, fTexCoords).rgb;
-	diffuse *= texture(diffuseTexture, fTexCoords).rgb;
-	specular *= texture(specularTexture, fTexCoords).rgb;
 
-	//vec3 color = min((ambient + diffuse) + specular, 1.0f);
+    vec3 baseColor = vec3(0.9f, 0.35f, 0.0f); // orange
 
-	//modulate with shadow
-	shadow = computeShadow();
-	vec3 color = min((ambient + (1.0f - shadow)*diffuse) + (1.0f - shadow)*specular, 1.0f);
+    ambient *= texture(diffuseTexture, fTexCoords).rgb;
+    diffuse *= texture(diffuseTexture, fTexCoords).rgb;
+    specular *= texture(specularTexture, fTexCoords).rgb;
 
-	vec3 cameraPosEye = vec3(0.0f);
-	vec3 viewDirection = fPosEye.xyz - cameraPosEye;
-	viewDirection = normalize(viewDirection);
-	vec3 normalN = normalize(fNormal);
-	vec3 reflection = reflect(viewDirection, normalN);
-	//fColor = vec4(vec3(texture(skybox, reflection)), 1.0f); 
-   
-	fColor = vec4(color, 1.0f);
-	float fogFactor = computeFog();
-	vec4 fogColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);
-	fColor = mix(fogColor, fColor, fogFactor);
-	fColor = fogColor * (1 - fogFactor) + fColor * fogFactor;
+    // Update the shadow calculation to only consider the first light
+    shadow = computeShadow();
 
-    
+    // Combine ambient, diffuse, and specular considering shadows for the first light only
+    vec3 color = min((ambient + (1.0f - shadow) * diffuse) + (1.0f - shadow) * specular, 1.0f);
+    float fogFactor = computeFog();
+    vec4 fogColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);
+    fColor = vec4(fogColor.rgb * (1 - fogFactor) + color * fogFactor, 1.0);
 }
